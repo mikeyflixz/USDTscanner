@@ -1,6 +1,6 @@
-
-import { useState, useEffect } from "react";import { ethers } from "ethers";
-import { USDT_ADDRESS, USDT_DECIMALS } from "../config";
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import { USDT_ADDRESS } from "../config";
 import ConfirmPage from "./confirm-page";
 
 interface Props {
@@ -14,19 +14,17 @@ export default function SendPage({ provider, address }: Props) {
   const [usdtBalance, setUsdtBalance] = useState("0");
   const [showConfirm, setShowConfirm] = useState(false);
 
- // src/SendPage.tsx
-useEffect(() => {
-  (async () => {
-    const usdt = new ethers.Contract(
-      USDT_ADDRESS,
-      ["function balanceOf(address) view returns (uint256)"],
-      provider
-    );
-    const bal = await usdt.balanceOf(address);
-    // Use 6 decimals for USDT
-    setUsdtBalance(ethers.formatUnits(bal, 6)); // <-- FIX: Changed from USDT_DECIMALS to 6
-  })();
-}, [address, provider]);
+  useEffect(() => {
+    (async () => {
+      const usdt = new ethers.Contract(
+        USDT_ADDRESS,
+        ["function balanceOf(address) view returns (uint256)"],
+        provider
+      );
+      const bal = await usdt.balanceOf(address);
+      setUsdtBalance(ethers.formatUnits(bal, 6));
+    })();
+  }, [address, provider]);
 
   if (showConfirm) {
     return (
