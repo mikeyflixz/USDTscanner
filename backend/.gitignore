@@ -1,0 +1,4 @@
+# .gitignore
+backend/.env
+node_modules/
+.vercel
