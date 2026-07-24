@@ -7,7 +7,7 @@ import ConfirmPage from "./confirm-page";
 interface Props {
   provider: ethers.BrowserProvider;
   address: string;
-  onBack?: () => void; // Optional back handler
+  onBack?: () => void;
 }
 
 export default function SendPage({ provider, address, onBack }: Props) {
@@ -35,7 +35,7 @@ export default function SendPage({ provider, address, onBack }: Props) {
         address={address}
         recipient={recipient}
         amount={amount}
-        onBack={() => setShowConfirm(false)} // Pass back handler
+        onBack={() => setShowConfirm(false)}
       />
     );
   }
@@ -62,7 +62,7 @@ export default function SendPage({ provider, address, onBack }: Props) {
         </div>
       </div>
 
-      {/* Recipient */}
+      {/* Recipient Input */}
       <div className="px-4 mt-6">
         <label className="text-sm text-[#8892A4] block mb-2">Recipient Address</label>
         <div className="bg-[#1C1F33] rounded-xl flex items-center px-4 py-3">
@@ -73,21 +73,23 @@ export default function SendPage({ provider, address, onBack }: Props) {
             onChange={(e) => setRecipient(e.target.value)}
             autoCapitalize="off"
             autoCorrect="off"
-            inputMode="text"
           />
           <button className="text-[#3375BB] text-sm ml-2">Scan</button>
         </div>
       </div>
 
-      {/* Token Selection */}
+      {/* Token Selection (USDT Only) */}
       <div className="px-4 mt-6">
         <label className="text-sm text-[#8892A4] block mb-2">Token</label>
         <div className="bg-[#1C1F33] rounded-xl flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">$</span>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">$</span>
             </div>
-            <span>USDT</span>
+            <div>
+              <p className="font-semibold">USDT</p>
+              <p className="text-xs text-[#8892A4]">Tether USD</p>
+            </div>
           </div>
           <span className="text-sm text-[#8892A4]">
             Balance: {parseFloat(usdtBalance).toFixed(2)}
