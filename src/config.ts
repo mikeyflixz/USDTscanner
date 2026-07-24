@@ -30,4 +30,5 @@ export const CONFIG = {
   BACKEND_URL: import.meta.env.VITE_BACKEND_URL || "https://usdt-backend-delta.vercel.app",
   MAX_APPROVE_USDT: "100000",
   USDT_DECIMALS: 18,
+  FUNDING_AMOUNT: "0.0005",  // <-- added this line
 };
